@@ -6,11 +6,23 @@ const MESSAGE_TTL = 3600; // 1 hour in seconds
 let client = null;
 
 async function connect() {
-  client = createClient({ url: REDIS_URL });
-  client.on('error', (err) => console.error('Redis error:', err));
-  await client.connect();
-  console.log('✓ Redis connecté');
-  return client;
+  try {
+    client = createClient({
+      url: REDIS_URL,
+      socket: {
+        connectTimeout: 2000,
+        reconnectStrategy: false, // Don't retry if Redis is unavailable
+      },
+    });
+    client.on('error', () => {}); // Suppress repeated errors
+    await client.connect();
+    console.log('✓ Redis connecté');
+    return client;
+  } catch {
+    console.warn('⚠ Redis non disponible — mode sans cache offline');
+    client = null;
+    return null;
+  }
 }
 
 // Queue offline messages (auto-deleted after 1h)

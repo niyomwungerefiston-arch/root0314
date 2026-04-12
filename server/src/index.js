@@ -29,6 +29,9 @@ const connectedUsers = new Map();
 //  REST API — Auth
 // ========================
 
+// Serve web preview
+app.use('/preview', express.static(require('path').join(__dirname, '..', '..', 'web-preview')));
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', name: 'Buchat Server', version: '1.0.0' });
 });
