@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Buchat",
+    "slug": "buchat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1976D2"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.bujaonline.buchat",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Buchat a besoin de la caméra pour les appels vidéo",
+        "NSMicrophoneUsageDescription": "Buchat a besoin du micro pour les appels et messages vocaux"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1976D2"
+      },
+      "package": "com.bujaonline.buchat",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
+      ]
+    }
+  }
+}
