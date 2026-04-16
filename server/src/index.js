@@ -12,6 +12,10 @@ const invites = require('./invites');
 const redis = require('./redis');
 const storage = require('./storage');
 const push = require('./push');
+const messages = require('./messages');
+const groups = require('./groups');
+const chats = require('./chats');
+const { createRegistry } = require('./users');
 const mediaRouter = require('./media');
 const { setupChat } = require('./chat');
 const { setupCalls } = require('./calls');
@@ -27,7 +31,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-// Serve static assets (legacy preview + PWA)
+// Statics
 app.use('/preview', express.static(path.join(__dirname, '..', '..', 'web-preview')));
 app.use('/app', express.static(path.join(__dirname, '..', '..', 'web-preview')));
 app.use('/website', express.static(path.join(__dirname, '..', '..', 'website')));
@@ -35,11 +39,11 @@ app.use('/website', express.static(path.join(__dirname, '..', '..', 'website')))
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
-  maxHttpBufferSize: 5e6, // 5MB (audio messages legacy path)
+  maxHttpBufferSize: 5e6,
 });
 
-// Connected users: userId -> socket
-const connectedUsers = new Map();
+// Multi-device registry
+const users = createRegistry();
 
 // ========================
 //  Helpers
@@ -54,35 +58,32 @@ function requireAuth(req, res, next) {
 }
 
 // ========================
-//  REST API — Public
+//  REST — Public
 // ========================
 
 app.get('/health', async (req, res) => {
-  const checks = {
+  res.json({
+    name: 'Buchat Server',
+    version: '1.2.0',
+    inviteOnly: INVITE_ONLY,
     server: 'ok',
     database: (await db.ping().catch(() => false)) ? 'ok' : 'down',
     storage: storage.isAvailable() ? 'ok' : 'down',
     push: push.isEnabled() ? 'ok' : 'disabled',
-  };
-  res.json({
-    name: 'Buchat Server',
-    version: '1.1.0',
-    inviteOnly: INVITE_ONLY,
-    ...checks,
+    onlineUsers: users.listOnline().length,
   });
 });
 
-// Config publique exposée au client (clé VAPID publique, etc.)
 app.get('/api/config', (req, res) => {
   res.json({
     vapidPublicKey: push.getPublicKey() || null,
     inviteOnly: INVITE_ONLY,
-    version: '1.1.0',
+    version: '1.2.0',
   });
 });
 
 // ========================
-//  REST API — Auth
+//  REST — Auth
 // ========================
 
 app.post('/api/register', async (req, res) => {
@@ -106,7 +107,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ========================
-//  REST API — Users
+//  REST — Users
 // ========================
 
 app.get('/api/users', requireAuth, async (req, res) => {
@@ -136,14 +137,13 @@ app.patch('/api/me', requireAuth, async (req, res) => {
 });
 
 // ========================
-//  REST API — Invites
+//  REST — Invites
 // ========================
 
 app.post('/api/invites', requireAuth, async (req, res) => {
   try {
     const { maxUses, expiryDays } = req.body;
-    const invite = await invites.create(req.user.id, { maxUses, expiryDays });
-    res.json(invite);
+    res.json(await invites.create(req.user.id, { maxUses, expiryDays }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -154,12 +154,11 @@ app.get('/api/invites', requireAuth, async (req, res) => {
 });
 
 app.delete('/api/invites/:code', requireAuth, async (req, res) => {
-  const ok = await invites.revoke(req.params.code, req.user.id);
-  res.json({ ok });
+  res.json({ ok: await invites.revoke(req.params.code, req.user.id) });
 });
 
 // ========================
-//  REST API — Push
+//  REST — Push
 // ========================
 
 app.post('/api/push/subscribe', requireAuth, async (req, res) => {
@@ -182,13 +181,142 @@ app.post('/api/push/unsubscribe', requireAuth, async (req, res) => {
 });
 
 // ========================
-//  REST API — Media (MinIO)
+//  REST — Messages (historique + recherche)
+// ========================
+
+app.get('/api/messages/direct/:peerId', requireAuth, async (req, res) => {
+  try {
+    const { limit, before } = req.query;
+    const list = await messages.getDirectHistory(req.user.id, req.params.peerId, {
+      limit: limit ? parseInt(limit, 10) : undefined,
+      before,
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/messages/group/:groupId', requireAuth, async (req, res) => {
+  try {
+    const { limit, before } = req.query;
+    const list = await messages.getGroupHistory(req.user.id, req.params.groupId, {
+      limit: limit ? parseInt(limit, 10) : undefined,
+      before,
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(403).json({ error: err.message });
+  }
+});
+
+app.get('/api/messages/search', requireAuth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString();
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    res.json(await messages.search(req.user.id, q, { limit }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ========================
+//  REST — Groups
+// ========================
+
+app.get('/api/groups', requireAuth, async (req, res) => {
+  res.json(await groups.listForUser(req.user.id));
+});
+
+app.post('/api/groups', requireAuth, async (req, res) => {
+  try {
+    const { name, members, about } = req.body;
+    res.json(await groups.create(req.user.id, { name, members, about }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/groups/:id', requireAuth, async (req, res) => {
+  const g = await groups.get(req.params.id, req.user.id);
+  if (!g) return res.status(404).json({ error: 'Groupe introuvable' });
+  res.json(g);
+});
+
+app.patch('/api/groups/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, about, avatarUrl } = req.body;
+    res.json(await groups.update(req.params.id, req.user.id, { name, about, avatarUrl }));
+  } catch (err) {
+    res.status(403).json({ error: err.message });
+  }
+});
+
+app.post('/api/groups/:id/members', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    res.json(await groups.addMember(req.params.id, req.user.id, userId));
+  } catch (err) {
+    res.status(403).json({ error: err.message });
+  }
+});
+
+app.delete('/api/groups/:id/members/:userId', requireAuth, async (req, res) => {
+  try {
+    await groups.removeMember(req.params.id, req.user.id, req.params.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(403).json({ error: err.message });
+  }
+});
+
+// ========================
+//  REST — Chat settings (block/archive/pin/mute)
+// ========================
+
+app.get('/api/chats/settings', requireAuth, async (req, res) => {
+  res.json(await chats.list(req.user.id));
+});
+
+app.get('/api/chats/blocked', requireAuth, async (req, res) => {
+  res.json(await chats.listBlocked(req.user.id));
+});
+
+// peer/:peerId or group/:groupId
+function parseChatTarget(req) {
+  if (req.params.peerId)  return { peerId: req.params.peerId };
+  if (req.params.groupId) return { groupId: req.params.groupId };
+  throw new Error('Cible invalide');
+}
+
+for (const kind of ['peer', 'group']) {
+  const idKey = kind === 'peer' ? 'peerId' : 'groupId';
+  app.post(`/api/chats/${kind}/:${idKey}/pin`,        requireAuth, wrap((req) => chats.pin(req.user.id, parseChatTarget(req))));
+  app.post(`/api/chats/${kind}/:${idKey}/unpin`,      requireAuth, wrap((req) => chats.unpin(req.user.id, parseChatTarget(req))));
+  app.post(`/api/chats/${kind}/:${idKey}/archive`,    requireAuth, wrap((req) => chats.archive(req.user.id, parseChatTarget(req))));
+  app.post(`/api/chats/${kind}/:${idKey}/unarchive`,  requireAuth, wrap((req) => chats.unarchive(req.user.id, parseChatTarget(req))));
+  app.post(`/api/chats/${kind}/:${idKey}/mute`,       requireAuth, wrap((req) => chats.mute(req.user.id, parseChatTarget(req), req.body?.hours || 8)));
+  app.post(`/api/chats/${kind}/:${idKey}/unmute`,     requireAuth, wrap((req) => chats.unmute(req.user.id, parseChatTarget(req))));
+}
+
+app.post('/api/chats/block/:userId', requireAuth, wrap((req) => chats.block(req.user.id, req.params.userId, req.body?.reason)));
+app.post('/api/chats/unblock/:userId', requireAuth, wrap((req) => chats.unblock(req.user.id, req.params.userId)));
+
+function wrap(fn) {
+  return async (req, res) => {
+    try { await fn(req); res.json({ ok: true }); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  };
+}
+
+// ========================
+//  REST — Media (MinIO)
 // ========================
 
 app.use('/api/media', mediaRouter);
 
 // ========================
-//  Socket.IO — Auth Middleware
+//  Socket.IO — Auth
 // ========================
 
 io.use((socket, next) => {
@@ -200,68 +328,59 @@ io.use((socket, next) => {
   next();
 });
 
-// ========================
-//  Socket.IO — Connection
-// ========================
-
 io.on('connection', async (socket) => {
   const user = socket.user;
-  console.log(`✓ ${user.displayName} connecté (${user.id})`);
-
-  connectedUsers.set(user.id, socket);
+  const wasOnline = users.isOnline(user.id);
+  users.add(socket);
   await redis.setOnline(user.id);
   await auth.updateLastSeen(user.id).catch(() => {});
 
-  socket.broadcast.emit('user_online', {
-    userId: user.id,
-    displayName: user.displayName,
-  });
+  console.log(`✓ ${user.displayName} connecté (${user.id}) — ${users.countDevices(user.id)} device(s)`);
 
-  const queuedMessages = await redis.getQueuedMessages(user.id);
-  if (queuedMessages.length > 0) {
-    socket.emit('offline_messages', queuedMessages);
-    console.log(`  → ${queuedMessages.length} messages en attente délivrés à ${user.displayName}`);
-  }
-
-  socket.on('get_online_users', () => {
-    const onlineUsers = [];
-    connectedUsers.forEach((s, userId) => {
-      if (userId !== user.id) {
-        onlineUsers.push({
-          userId,
-          displayName: s.user.displayName,
-        });
-      }
-    });
-    socket.emit('online_users', onlineUsers);
-  });
-
-  socket.on('disconnect', async () => {
-    console.log(`✗ ${user.displayName} déconnecté`);
-    connectedUsers.delete(user.id);
-    await redis.setOffline(user.id);
-    await auth.updateLastSeen(user.id).catch(() => {});
-
-    socket.broadcast.emit('user_offline', {
+  if (!wasOnline) {
+    socket.broadcast.emit('user_online', {
       userId: user.id,
       displayName: user.displayName,
     });
+  }
+
+  // Livrer la queue Redis (messages reçus hors-ligne)
+  const queued = await redis.getQueuedMessages(user.id);
+  if (queued.length > 0) {
+    socket.emit('offline_messages', queued);
+    console.log(`  → ${queued.length} messages en attente livrés`);
+  }
+
+  socket.on('get_online_users', () => {
+    socket.emit('online_users', users.listOnline().filter((id) => id !== user.id));
+  });
+
+  socket.on('disconnect', async () => {
+    users.remove(socket);
+    const stillOnline = users.isOnline(user.id);
+
+    if (!stillOnline) {
+      await redis.setOffline(user.id);
+      await auth.updateLastSeen(user.id).catch(() => {});
+      socket.broadcast.emit('user_offline', {
+        userId: user.id,
+        displayName: user.displayName,
+      });
+      console.log(`✗ ${user.displayName} déconnecté (tous devices)`);
+    } else {
+      console.log(`— ${user.displayName} : 1 device déconnecté, ${users.countDevices(user.id)} restant`);
+    }
   });
 });
 
-// ========================
-//  Setup Chat & Calls (avec push)
-// ========================
-
-setupChat(io, connectedUsers, { push });
-setupCalls(io, connectedUsers, { push });
+setupChat(io, users, { push });
+setupCalls(io, users, { push });
 
 // ========================
-//  Start Server
+//  Start
 // ========================
 
 async function start() {
-  // 1. PostgreSQL
   try {
     await db.ping();
     console.log('✓ PostgreSQL connecté');
@@ -269,30 +388,35 @@ async function start() {
     console.log('✓ Migrations appliquées');
   } catch (err) {
     console.error('✗ PostgreSQL indisponible :', err.message);
-    console.error('  Vérifiez DATABASE_URL ou lancez docker compose up -d postgres');
     process.exit(1);
   }
 
-  // 2. Redis (optionnel — mode dégradé si absent)
-  try {
-    await redis.connect();
-  } catch {
-    console.warn('⚠ Redis non disponible — messages offline désactivés');
-  }
+  try { await redis.connect(); }
+  catch { console.warn('⚠ Redis indisponible — messages offline désactivés'); }
 
-  // 3. MinIO (optionnel)
   await storage.connect();
-
-  // 4. Web Push VAPID (optionnel)
   push.configure();
 
-  // 5. HTTP server
+  // Job de purge périodique (toutes les 6h)
+  const PURGE_INTERVAL = parseInt(process.env.MESSAGE_PURGE_INTERVAL_MS || '21600000', 10);
+  setInterval(async () => {
+    try {
+      const { rows } = await db.query('SELECT purge_old_messages($1) AS n', [messages.MESSAGE_TTL_DAYS]);
+      if (rows[0].n > 0) {
+        console.log(`🧹 Purge : ${rows[0].n} messages supprimés (>${messages.MESSAGE_TTL_DAYS}j)`);
+      }
+    } catch (err) {
+      console.warn('⚠ purge_old_messages :', err.message);
+    }
+  }, PURGE_INTERVAL);
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log('');
     console.log('╔══════════════════════════════════════╗');
-    console.log('║         🟠 BUCHAT SERVER 🔵         ║');
+    console.log('║         🟠 BUCHAT SERVER 🔵          ║');
     console.log(`║   Port: ${String(PORT).padEnd(29)}║`);
-    console.log(`║   Mode: ${INVITE_ONLY ? 'invitation seulement       ' : 'ouvert                     '}  ║`);
+    console.log(`║   Mode: ${INVITE_ONLY ? 'invitation seulement         ' : 'ouvert                       '}║`);
+    console.log(`║   TTL messages: ${String(messages.MESSAGE_TTL_DAYS + 'j').padEnd(21)}║`);
     console.log('║   Buja Online — Bujumbura, Burundi   ║');
     console.log('╚══════════════════════════════════════╝');
     console.log('');
@@ -304,9 +428,8 @@ start().catch((err) => {
   process.exit(1);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('→ SIGTERM reçu, arrêt propre...');
+  console.log('→ SIGTERM, arrêt propre...');
   server.close();
   await db.close();
   process.exit(0);

@@ -1,7 +1,7 @@
 {
   "name": "buchat-server",
-  "version": "1.1.0",
-  "description": "Buchat - Serveur de communication locale (PostgreSQL + MinIO + Web Push)",
+  "version": "1.2.0",
+  "description": "Buchat - Serveur de communication locale (PostgreSQL + MinIO + Web Push + multi-device)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

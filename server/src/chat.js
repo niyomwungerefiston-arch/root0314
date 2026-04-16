@@ -1,164 +1,280 @@
-const { v4: uuidv4 } = require('uuid');
+/**
+ * Buchat — Chat Socket.IO handlers (Sprint 2)
+ *
+ * Fonctionnalités :
+ *   • Messages directs + groupes (persistés 30j par défaut)
+ *   • Accusés de réception ✓ et lecture ✓✓
+ *   • Réactions emoji
+ *   • Multi-appareils : émission à TOUS les sockets d'un user
+ *   • Indicateurs de frappe
+ *   • Groupes PostgreSQL (plus d'in-memory)
+ *   • Blocage (un user bloqué ne peut pas envoyer)
+ */
+
 const redis = require('./redis');
+const messages = require('./messages');
+const groups = require('./groups');
+const chats = require('./chats');
 
-// In-memory room/group storage
-const rooms = new Map();
-
-function messagePreview(type, content) {
-  if (type === 'text') return String(content || '').slice(0, 80);
-  if (type === 'audio' || type === 'voice') return '🎤 Message vocal';
-  if (type === 'image') return '📷 Photo';
-  if (type === 'video') return '🎬 Vidéo';
-  if (type === 'file') return '📎 Fichier';
-  return 'Nouveau message';
-}
-
-function setupChat(io, connectedUsers, opts = {}) {
+function setupChat(io, users, opts = {}) {
   const push = opts.push || null;
 
   io.on('connection', (socket) => {
     const user = socket.user;
     if (!user) return;
 
-    // --- Direct Messages ---
+    // ==================================================
+    //  DIRECT MESSAGES (1-to-1)
+    // ==================================================
 
-    socket.on('direct_message', async (data) => {
-      const { to, content, type = 'text' } = data;
+    socket.on('direct_message', async (data, ack) => {
+      try {
+        const { to, content, type = 'text', mediaBucket, mediaObject, replyTo } = data;
+        if (!to) throw new Error('Destinataire manquant');
 
-      const message = {
-        id: uuidv4(),
-        from: user.id,
-        fromName: user.displayName,
-        to,
-        content,
-        type, // 'text', 'audio', 'image', 'video', 'file'
-        timestamp: Date.now(),
-      };
-
-      const recipientSocket = connectedUsers.get(to);
-      if (recipientSocket) {
-        // User is online — relay directly (no storage)
-        recipientSocket.emit('new_message', message);
-        socket.emit('message_delivered', { messageId: message.id, to });
-      } else {
-        // User is offline — queue in Redis (TTL 1h) + envoyer push
-        await redis.queueMessage(to, message);
-        socket.emit('message_queued', { messageId: message.id, to });
-
-        if (push && push.isEnabled()) {
-          push.sendToUser(to, push.buildMessageNotification({
-            fromName: user.displayName,
-            preview: messagePreview(type, content),
-            chatId: user.id,
-          })).catch(() => {});
+        // Blocage ?
+        if (await chats.isBlockedEither(user.id, to)) {
+          if (typeof ack === 'function') ack({ error: 'Utilisateur bloqué' });
+          return;
         }
-      }
-    });
 
-    // --- Typing indicators ---
-
-    socket.on('typing_start', (data) => {
-      const { to } = data;
-      const recipientSocket = connectedUsers.get(to);
-      if (recipientSocket) {
-        recipientSocket.emit('user_typing', {
-          userId: user.id,
-          displayName: user.displayName,
+        // Persister
+        const msg = await messages.save({
+          fromUserId: user.id,
+          toUserId: to,
+          content,
+          type,
+          mediaBucket,
+          mediaObject,
+          replyTo,
         });
-      }
-    });
 
-    socket.on('typing_stop', (data) => {
-      const { to } = data;
-      const recipientSocket = connectedUsers.get(to);
-      if (recipientSocket) {
-        recipientSocket.emit('user_stopped_typing', { userId: user.id });
-      }
-    });
+        const payload = {
+          ...msg,
+          fromName: user.displayName,
+        };
 
-    // --- Group Chat ---
+        // 1) Echo à TOUS les devices de l'expéditeur (multi-device sync)
+        users.emitToUser(user.id, 'new_message', payload);
 
-    socket.on('create_group', (data) => {
-      const { name, members } = data;
-      const groupId = uuidv4();
+        // 2) Livrer au destinataire s'il est en ligne
+        const delivered = users.emitToUser(to, 'new_message', payload);
 
-      const group = {
-        id: groupId,
-        name,
-        creator: user.id,
-        members: [user.id, ...members],
-        createdAt: Date.now(),
-      };
-
-      rooms.set(groupId, group);
-      socket.join(groupId);
-
-      // Add all online members to the room
-      group.members.forEach((memberId) => {
-        const memberSocket = connectedUsers.get(memberId);
-        if (memberSocket) {
-          memberSocket.join(groupId);
-          memberSocket.emit('group_created', group);
-        }
-      });
-
-      socket.emit('group_created', group);
-    });
-
-    socket.on('group_message', async (data) => {
-      const { groupId, content, type = 'text' } = data;
-      const group = rooms.get(groupId);
-      if (!group || !group.members.includes(user.id)) return;
-
-      const message = {
-        id: uuidv4(),
-        from: user.id,
-        fromName: user.displayName,
-        groupId,
-        content,
-        type,
-        timestamp: Date.now(),
-      };
-
-      // Relay to all online members
-      group.members.forEach(async (memberId) => {
-        if (memberId === user.id) return;
-        const memberSocket = connectedUsers.get(memberId);
-        if (memberSocket) {
-          memberSocket.emit('new_group_message', message);
+        if (delivered) {
+          await messages.markDelivered(msg.id, to);
+          users.emitToUser(user.id, 'message_delivered', {
+            messageId: msg.id,
+            to,
+            at: Date.now(),
+          });
         } else {
-          await redis.queueMessage(memberId, { ...message, isGroup: true });
+          // Queue Redis (relais rapide à la reconnexion) + push
+          await redis.queueMessage(to, payload);
+
           if (push && push.isEnabled()) {
-            push.sendToUser(memberId, push.buildMessageNotification({
-              fromName: `${user.displayName} (${group.name})`,
-              preview: messagePreview(type, content),
-              chatId: groupId,
+            push.sendToUser(to, push.buildMessageNotification({
+              fromName: user.displayName,
+              preview: messages.messagePreview(type, content),
+              chatId: user.id,
             })).catch(() => {});
           }
         }
-      });
-    });
 
-    socket.on('join_group', (data) => {
-      const { groupId } = data;
-      const group = rooms.get(groupId);
-      if (!group) return;
-
-      if (!group.members.includes(user.id)) {
-        group.members.push(user.id);
+        if (typeof ack === 'function') ack({ ok: true, message: payload });
+      } catch (err) {
+        console.warn('direct_message error:', err.message);
+        if (typeof ack === 'function') ack({ error: err.message });
       }
-      socket.join(groupId);
-      socket.emit('group_joined', group);
     });
 
-    socket.on('get_groups', () => {
-      const userGroups = [];
-      rooms.forEach((group) => {
-        if (group.members.includes(user.id)) {
-          userGroups.push(group);
-        }
+    // ==================================================
+    //  TYPING INDICATORS
+    // ==================================================
+
+    socket.on('typing_start', (data) => {
+      if (!data || !data.to) return;
+      users.emitToUser(data.to, 'user_typing', {
+        userId: user.id,
+        displayName: user.displayName,
+        chatId: data.chatId || user.id,
       });
-      socket.emit('groups_list', userGroups);
+    });
+
+    socket.on('typing_stop', (data) => {
+      if (!data || !data.to) return;
+      users.emitToUser(data.to, 'user_stopped_typing', {
+        userId: user.id,
+        chatId: data.chatId || user.id,
+      });
+    });
+
+    // ==================================================
+    //  READ RECEIPTS
+    // ==================================================
+
+    // Le client envoie la liste des ids lus
+    socket.on('messages_read', async (data) => {
+      try {
+        const { messageIds = [] } = data || {};
+        const updated = await messages.markReadBulk(messageIds, user.id);
+
+        // Regrouper par expéditeur pour notifier chaque device
+        const bySender = new Map();
+        for (const r of updated) {
+          if (!bySender.has(r.fromUserId)) bySender.set(r.fromUserId, []);
+          bySender.get(r.fromUserId).push(r.messageId);
+        }
+        for (const [senderId, ids] of bySender) {
+          users.emitToUser(senderId, 'messages_read_by', {
+            reader: user.id,
+            messageIds: ids,
+            at: Date.now(),
+          });
+        }
+
+        // Echo aux autres devices du même user
+        users.emitToUser(user.id, 'my_read_marker', {
+          messageIds,
+          at: Date.now(),
+        }, socket.id);
+      } catch (err) {
+        console.warn('messages_read error:', err.message);
+      }
+    });
+
+    // Le client a ouvert toute une conversation — marquer tout lu
+    socket.on('conversation_read', async (data) => {
+      try {
+        const { peerId } = data || {};
+        if (!peerId) return;
+        const ids = await messages.markConversationRead(user.id, peerId);
+        if (ids.length === 0) return;
+
+        users.emitToUser(peerId, 'messages_read_by', {
+          reader: user.id,
+          messageIds: ids,
+          at: Date.now(),
+        });
+        users.emitToUser(user.id, 'my_read_marker', {
+          messageIds: ids,
+          at: Date.now(),
+        }, socket.id);
+      } catch (err) {
+        console.warn('conversation_read error:', err.message);
+      }
+    });
+
+    // ==================================================
+    //  REACTIONS
+    // ==================================================
+
+    socket.on('message_react', async (data, ack) => {
+      try {
+        const { messageId, emoji } = data;
+        const target = await messages.react(messageId, user.id, emoji);
+        broadcastReaction(target, { emoji, userId: user.id }, 'add');
+        if (typeof ack === 'function') ack({ ok: true });
+      } catch (err) {
+        if (typeof ack === 'function') ack({ error: err.message });
+      }
+    });
+
+    socket.on('message_unreact', async (data, ack) => {
+      try {
+        const { messageId } = data;
+        const target = await messages.unreact(messageId, user.id);
+        broadcastReaction(target, { userId: user.id }, 'remove');
+        if (typeof ack === 'function') ack({ ok: true });
+      } catch (err) {
+        if (typeof ack === 'function') ack({ error: err.message });
+      }
+    });
+
+    function broadcastReaction(target, payload, action) {
+      const evt = {
+        messageId: target.messageId,
+        action, // 'add' | 'remove'
+        ...payload,
+      };
+      if (target.groupId) {
+        for (const memberId of target.members) {
+          users.emitToUser(memberId, 'message_reaction', evt);
+        }
+      } else {
+        users.emitToUser(target.from, 'message_reaction', evt);
+        if (target.to) users.emitToUser(target.to, 'message_reaction', evt);
+      }
+    }
+
+    // ==================================================
+    //  GROUP CHAT (PostgreSQL)
+    // ==================================================
+
+    socket.on('create_group', async (data, ack) => {
+      try {
+        const group = await groups.create(user.id, {
+          name: data.name,
+          members: data.members || [],
+          about: data.about,
+        });
+        // Notifier tous les membres
+        for (const memberId of group.members) {
+          users.emitToUser(memberId, 'group_created', group);
+        }
+        if (typeof ack === 'function') ack({ ok: true, group });
+      } catch (err) {
+        if (typeof ack === 'function') ack({ error: err.message });
+      }
+    });
+
+    socket.on('get_groups', async () => {
+      const list = await groups.listForUser(user.id);
+      socket.emit('groups_list', list);
+    });
+
+    socket.on('group_message', async (data, ack) => {
+      try {
+        const { groupId, content, type = 'text', mediaBucket, mediaObject, replyTo } = data;
+        if (!(await groups.isMember(groupId, user.id))) {
+          throw new Error('Non membre du groupe');
+        }
+
+        const msg = await messages.save({
+          fromUserId: user.id,
+          groupId,
+          content,
+          type,
+          mediaBucket,
+          mediaObject,
+          replyTo,
+        });
+
+        const payload = { ...msg, fromName: user.displayName };
+
+        const memberIds = await groups.getMembers(groupId);
+        for (const memberId of memberIds) {
+          const delivered = users.emitToUser(memberId, 'new_group_message', payload);
+          if (memberId !== user.id) {
+            if (delivered) {
+              await messages.markDelivered(msg.id, memberId);
+            } else {
+              await redis.queueMessage(memberId, { ...payload, isGroup: true });
+              if (push && push.isEnabled()) {
+                push.sendToUser(memberId, push.buildMessageNotification({
+                  fromName: `${user.displayName}`,
+                  preview: messages.messagePreview(type, content),
+                  chatId: groupId,
+                })).catch(() => {});
+              }
+            }
+          }
+        }
+
+        if (typeof ack === 'function') ack({ ok: true, message: payload });
+      } catch (err) {
+        console.warn('group_message error:', err.message);
+        if (typeof ack === 'function') ack({ error: err.message });
+      }
     });
   });
 }
