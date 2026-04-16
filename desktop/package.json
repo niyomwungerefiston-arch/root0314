@@ -1,0 +1,82 @@
+{
+  "name": "buchat-desktop",
+  "productName": "Buchat",
+  "version": "1.0.0",
+  "description": "Buchat — Communication locale sécurisée pour le Burundi (Desktop)",
+  "main": "main.js",
+  "author": {
+    "name": "Buja Online",
+    "email": "contact@bujaonline.com",
+    "url": "https://bujaonline.com"
+  },
+  "homepage": "https://buchat.bujaonline.com",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "BUCHAT_URL=http://localhost:3000/preview/ electron .",
+    "pack": "electron-builder --dir",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -mwl"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.bujaonline.buchat",
+    "productName": "Buchat",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "../website/downloads",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "build-resources/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://buchat.bujaonline.com/downloads/"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build-resources/icon-512.png",
+      "artifactName": "Buchat-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Buchat"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["universal"] }
+      ],
+      "icon": "build-resources/icon-512.png",
+      "category": "public.app-category.social-networking",
+      "artifactName": "Buchat.${ext}"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "icon": "build-resources/icon-512.png",
+      "category": "Network",
+      "artifactName": "Buchat.${ext}"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "buchat-android",
+  "version": "1.0.0",
+  "description": "Buchat Android wrapper (Capacitor — empaquette la PWA en APK natif)",
+  "private": true,
+  "author": "Buja Online <contact@bujaonline.com>",
+  "scripts": {
+    "init": "npx cap init Buchat com.bujaonline.buchat --web-dir=../web-preview",
+    "add:android": "npx cap add android",
+    "sync": "npx cap sync android",
+    "open:android": "npx cap open android",
+    "build:apk": "cd android && ./gradlew assembleRelease",
+    "build:apk-debug": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

@@ -2,8 +2,25 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Buchat — par Buja Online</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0D1B2A">
+  <meta name="description" content="Communication locale sécurisée pour le Burundi. Chat, messages vocaux, appels audio et vidéo.">
+
+  <!-- iOS / Safari PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Buchat">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+  <link rel="shortcut icon" href="icons/favicon.ico">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -476,6 +493,36 @@
 
   function toggleMute() {}
   function toggleSpeaker() {}
+
+  // ---- PWA : enregistrement du service worker ----
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('sw.js', { scope: './' })
+        .then((reg) => console.log('✓ Service Worker actif', reg.scope))
+        .catch((err) => console.warn('SW non enregistré :', err));
+    });
+  }
+
+  // ---- Détection "Ajouter à l'écran d'accueil" (Android/Chrome) ----
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    // Optionnel : afficher un bouton "Installer l'appli"
+    // document.getElementById('installBtn').hidden = false;
+  });
+
+  // Fonction exposée pour déclencher l'installation (à brancher sur un bouton)
+  window.installBuchat = async () => {
+    if (!deferredInstallPrompt) {
+      alert("Sur iPhone : appuyez sur Partager → Ajouter à l'écran d'accueil.");
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+  };
 </script>
 
 </body>

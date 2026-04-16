@@ -45,10 +45,24 @@ echo "  coturn: OK"
 # 5. Install Nginx
 echo "→ Installation de Nginx..."
 apt install -y nginx certbot python3-certbot-nginx
+
+# Dossier pour le challenge HTTP-01 de Let's Encrypt
+mkdir -p /var/www/certbot
+chown www-data:www-data /var/www/certbot
+
+# S'assurer que les dossiers servis existent
+mkdir -p /opt/buchat/website/downloads
+mkdir -p /opt/buchat/web-preview
+
 cp /opt/buchat/deploy/nginx-buchat.conf /etc/nginx/sites-available/buchat
 ln -sf /etc/nginx/sites-available/buchat /etc/nginx/sites-enabled/
+
+# Désactiver le site par défaut s'il existe (conflit port 80)
+rm -f /etc/nginx/sites-enabled/default
+
 nginx -t && systemctl reload nginx
 echo "  Nginx: OK"
+echo "  → Lancez ensuite : certbot --nginx -d buchat.bujaonline.com"
 
 # 6. Install PM2
 echo "→ Installation de PM2..."

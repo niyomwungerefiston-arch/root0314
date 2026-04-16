@@ -1,0 +1,33 @@
+{
+  "appId": "com.bujaonline.buchat",
+  "appName": "Buchat",
+  "webDir": "../web-preview",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://buchat.bujaonline.com/app/",
+    "cleartext": false,
+    "androidScheme": "https",
+    "hostname": "buchat.bujaonline.com",
+    "allowNavigation": [
+      "buchat.bujaonline.com",
+      "*.bujaonline.com"
+    ]
+  },
+  "android": {
+    "backgroundColor": "#0D1B2A",
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "appendUserAgent": "Buchat/1.0"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#0D1B2A",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    }
+  }
+}

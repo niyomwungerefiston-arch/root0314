@@ -1,8 +1,41 @@
+# Node
 node_modules/
-.env
 *.log
+npm-debug.log*
+
+# Env & secrets
+.env
+.env.local
+*.keystore
+*.jks
+*.p12
+
+# Expo / React Native build outputs (dans mobile/)
 .expo/
-dist/
-build/
-ios/
-android/
+mobile/ios/
+mobile/android/
+mobile/dist/
+mobile/build/
+
+# Capacitor build output (généré par npx cap add android)
+android/android/
+android/node_modules/
+
+# Electron build output
+desktop/dist/
+desktop/node_modules/
+
+# Binaires distribuables (buildés, trop gros pour Git)
+website/downloads/*.exe
+website/downloads/*.dmg
+website/downloads/*.apk
+website/downloads/*.AppImage
+website/downloads/*.deb
+website/downloads/*.zip
+website/downloads/*.yml
+website/downloads/*.blockmap
+website/downloads/SHA256SUMS
+
+# OS
+.DS_Store
+Thumbs.db
