@@ -1,0 +1,159 @@
+# ==========================================================
+# Buchat — Stack complète (local + production)
+# ==========================================================
+#
+# Services :
+#   postgres  (5432)  — persistance users/invites/push
+#   redis     (6379)  — queue offline + pub/sub
+#   minio     (9000)  — stockage médias S3-compatible
+#   buchat    (3000)  — backend Node.js (Socket.IO + REST)
+#   nginx     (80/443) — reverse proxy + statics + SSL
+#   coturn    (3478) — TURN/STUN pour WebRTC
+#
+# Démarrage :
+#   docker compose up -d
+#   docker compose logs -f buchat
+#
+# Échelle :
+#   BUCHAT_WORKERS=8 docker compose up -d
+# ==========================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-buchat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buchat}
+      POSTGRES_DB: ${POSTGRES_DB:-buchat}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buchat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - buchat-internal
+    # Pas de port exposé sur l'hôte : accès via le network Docker uniquement
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - buchat-internal
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-buchat}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-buchat-secret-change-me}
+    volumes:
+      - minio-data:/data
+    ports:
+      # Exposé car les URL présignées pointent directement sur lui
+      - "9000:9000"
+      # Console admin (à protéger derrière Nginx en prod)
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - buchat-internal
+
+  buchat:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      DATABASE_URL: postgres://${POSTGRES_USER:-buchat}:${POSTGRES_PASSWORD:-buchat}@postgres:5432/${POSTGRES_DB:-buchat}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-buchat}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-buchat-secret-change-me}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:contact@bujaonline.com}
+      TURN_SERVER: ${TURN_SERVER:-turn:localhost:3478}
+      TURN_USERNAME: ${TURN_USERNAME:-buchat}
+      TURN_PASSWORD: ${TURN_PASSWORD:-buchat-turn-secret}
+      BUCHAT_INVITE_ONLY: ${BUCHAT_INVITE_ONLY:-false}
+      BUCHAT_PUBLIC_URL: ${BUCHAT_PUBLIC_URL:-https://buchat.bujaonline.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      # Monter les statics pour pouvoir les mettre à jour sans rebuild
+      - ./web-preview:/srv/web-preview:ro
+      - ./website:/srv/website:ro
+    networks:
+      - buchat-internal
+    # Port exposé uniquement sur localhost, Nginx fait le reverse proxy
+    ports:
+      - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx-buchat.conf:/etc/nginx/conf.d/buchat.conf:ro
+      - ./website:/opt/buchat/website:ro
+      - ./web-preview:/opt/buchat/web-preview:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    depends_on:
+      - buchat
+    networks:
+      - buchat-internal
+
+  # TURN/STUN server pour WebRTC
+  # Utilise network=host pour que les ports UDP fonctionnent correctement
+  coturn:
+    image: coturn/coturn:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./deploy/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  letsencrypt:
+  certbot-www:
+
+networks:
+  buchat-internal:
+    driver: bridge

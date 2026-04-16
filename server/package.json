@@ -1,21 +1,28 @@
 {
   "name": "buchat-server",
-  "version": "1.0.0",
-  "description": "Buchat - Serveur de communication locale (relais uniquement, aucun stockage permanent)",
+  "version": "1.1.0",
+  "description": "Buchat - Serveur de communication locale (PostgreSQL + MinIO + Web Push)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "migrate": "node src/migrate.js",
+    "generate-vapid": "node -e \"const webpush = require('web-push'); const keys = webpush.generateVAPIDKeys(); console.log('VAPID_PUBLIC_KEY=' + keys.publicKey); console.log('VAPID_PRIVATE_KEY=' + keys.privateKey);\""
   },
   "dependencies": {
-    "socket.io": "^4.7.5",
-    "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
-    "redis": "^4.6.13",
-    "uuid": "^9.0.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "dotenv": "^16.4.5"
+    "jsonwebtoken": "^9.0.2",
+    "minio": "^8.0.0",
+    "multer": "^2.0.0",
+    "pg": "^8.13.0",
+    "redis": "^4.6.13",
+    "socket.io": "^4.7.5",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

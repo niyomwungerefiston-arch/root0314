@@ -19,7 +19,9 @@ function getIceServers() {
   ];
 }
 
-function setupCalls(io, connectedUsers) {
+function setupCalls(io, connectedUsers, opts = {}) {
+  const push = opts.push || null;
+
   io.on('connection', (socket) => {
     const user = socket.user;
     if (!user) return;
@@ -31,7 +33,15 @@ function setupCalls(io, connectedUsers) {
 
       const recipientSocket = connectedUsers.get(to);
       if (!recipientSocket) {
-        socket.emit('call_error', { message: 'Utilisateur hors ligne' });
+        // Send push notification so the callee can wake up and answer
+        if (push && push.isEnabled()) {
+          push.sendToUser(to, push.buildCallNotification({
+            fromName: user.displayName,
+            chatId: user.id,
+            isVideo: callType === 'video',
+          })).catch(() => {});
+        }
+        socket.emit('call_error', { message: 'Utilisateur hors ligne — notification envoyée' });
         return;
       }
 

@@ -4,7 +4,18 @@ const redis = require('./redis');
 // In-memory room/group storage
 const rooms = new Map();
 
-function setupChat(io, connectedUsers) {
+function messagePreview(type, content) {
+  if (type === 'text') return String(content || '').slice(0, 80);
+  if (type === 'audio' || type === 'voice') return '🎤 Message vocal';
+  if (type === 'image') return '📷 Photo';
+  if (type === 'video') return '🎬 Vidéo';
+  if (type === 'file') return '📎 Fichier';
+  return 'Nouveau message';
+}
+
+function setupChat(io, connectedUsers, opts = {}) {
+  const push = opts.push || null;
+
   io.on('connection', (socket) => {
     const user = socket.user;
     if (!user) return;
@@ -20,7 +31,7 @@ function setupChat(io, connectedUsers) {
         fromName: user.displayName,
         to,
         content,
-        type, // 'text', 'audio', 'image'
+        type, // 'text', 'audio', 'image', 'video', 'file'
         timestamp: Date.now(),
       };
 
@@ -30,9 +41,17 @@ function setupChat(io, connectedUsers) {
         recipientSocket.emit('new_message', message);
         socket.emit('message_delivered', { messageId: message.id, to });
       } else {
-        // User is offline — queue in Redis (TTL 1h)
+        // User is offline — queue in Redis (TTL 1h) + envoyer push
         await redis.queueMessage(to, message);
         socket.emit('message_queued', { messageId: message.id, to });
+
+        if (push && push.isEnabled()) {
+          push.sendToUser(to, push.buildMessageNotification({
+            fromName: user.displayName,
+            preview: messagePreview(type, content),
+            chatId: user.id,
+          })).catch(() => {});
+        }
       }
     });
 
@@ -109,6 +128,13 @@ function setupChat(io, connectedUsers) {
           memberSocket.emit('new_group_message', message);
         } else {
           await redis.queueMessage(memberId, { ...message, isGroup: true });
+          if (push && push.isEnabled()) {
+            push.sendToUser(memberId, push.buildMessageNotification({
+              fromName: `${user.displayName} (${group.name})`,
+              preview: messagePreview(type, content),
+              chatId: groupId,
+            })).catch(() => {});
+          }
         }
       });
     });
