@@ -21,212 +21,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
   <link rel="shortcut icon" href="icons/favicon.ico">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    :root {
-      --primary: #1976D2;
-      --primary-dark: #0D1B2A;
-      --primary-light: #42A5F5;
-      --accent: #F57C00;
-      --accent-light: #FFB74D;
-      --bg: #F5F5F5;
-      --surface: #FFFFFF;
-      --chat-bg: #E3F2FD;
-      --text: #212121;
-      --text-sec: #757575;
-      --text-white: #FFFFFF;
-      --online: #4CAF50;
-      --offline: #9E9E9E;
-      --error: #F44336;
-      --border: #E0E0E0;
-      --bubble-sent: #1976D2;
-      --bubble-recv: #FFFFFF;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      max-width: 430px;
-      margin: 0 auto;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    /* ========== SCREENS ========== */
-    .screen { display: none; height: 100vh; flex-direction: column; }
-    .screen.active { display: flex; }
-
-    /* ========== LOGIN SCREEN ========== */
-    #loginScreen {
-      background: var(--primary);
-      justify-content: center;
-      align-items: center;
-      padding: 24px;
-    }
-    .logo-circle {
-      width: 80px; height: 80px; border-radius: 50%;
-      background: var(--accent);
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 8px;
-    }
-    .logo-circle span { font-size: 42px; font-weight: bold; color: white; }
-    .logo-title { font-size: 28px; font-weight: bold; color: white; }
-    .logo-subtitle { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 24px; }
-
-    .card {
-      background: white; border-radius: 16px; padding: 24px;
-      width: 100%; max-width: 380px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    }
-    .tabs { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 20px; }
-    .tab { flex: 1; padding: 10px; text-align: center; font-weight: bold; font-size: 13px; cursor: pointer; background: white; color: var(--text-sec); border: none; }
-    .tab.active { background: var(--accent); color: white; }
-
-    .form-input {
-      width: 100%; padding: 14px; border-radius: 8px;
-      border: 1px solid var(--border); background: var(--bg);
-      font-size: 14px; margin-bottom: 12px; outline: none;
-    }
-    .form-input:focus { border-color: var(--accent); }
-
-    .btn {
-      width: 100%; padding: 14px; border-radius: 8px; border: none;
-      background: var(--accent); color: white;
-      font-size: 16px; font-weight: bold; cursor: pointer;
-      margin-top: 8px;
-    }
-    .btn:active { opacity: 0.9; }
-    .footer-text { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 24px; text-align: center; }
-
-    #nameField { display: none; }
-
-    /* ========== CHAT LIST SCREEN ========== */
-    #chatListScreen { background: var(--bg); }
-
-    .header {
-      background: var(--primary-dark);
-      padding: 50px 20px 16px;
-    }
-    .header h1 { color: white; font-size: 24px; }
-    .header small { color: rgba(255,255,255,0.6); font-size: 12px; }
-
-    .contact-list { flex: 1; overflow-y: auto; }
-    .contact-item {
-      display: flex; align-items: center; padding: 14px 16px;
-      background: white; border-bottom: 1px solid var(--border);
-      cursor: pointer;
-    }
-    .contact-item:active { background: #f0f0f0; }
-
-    .avatar {
-      width: 50px; height: 50px; border-radius: 50%;
-      background: var(--primary);
-      display: flex; align-items: center; justify-content: center;
-      margin-right: 14px; position: relative; flex-shrink: 0;
-    }
-    .avatar span { color: white; font-size: 20px; font-weight: bold; }
-    .status-dot {
-      width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid white; position: absolute;
-      bottom: -1px; right: -1px;
-    }
-    .status-dot.online { background: var(--online); }
-    .status-dot.offline { background: var(--offline); }
-
-    .contact-info { flex: 1; min-width: 0; }
-    .contact-name { font-size: 16px; font-weight: 600; color: var(--text); }
-    .contact-preview { font-size: 13px; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .contact-time { font-size: 11px; color: var(--text-sec); }
-
-    /* ========== CHAT SCREEN ========== */
-    #chatScreen { background: var(--chat-bg); }
-
-    .chat-header {
-      background: var(--primary-dark);
-      padding: 50px 16px 14px;
-      display: flex; align-items: center;
-    }
-    .back-btn { color: white; font-size: 24px; margin-right: 12px; cursor: pointer; background: none; border: none; }
-    .chat-header-info { flex: 1; }
-    .chat-header-name { color: white; font-size: 17px; font-weight: bold; }
-    .chat-header-status { color: var(--accent-light); font-size: 12px; }
-    .call-btns { display: flex; gap: 12px; }
-    .call-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 4px; }
-
-    .messages { flex: 1; overflow-y: auto; padding: 16px; }
-    .message {
-      max-width: 75%; padding: 10px 14px; border-radius: 16px;
-      margin-bottom: 8px; position: relative;
-    }
-    .message.sent {
-      background: var(--bubble-sent); color: white;
-      margin-left: auto; border-bottom-right-radius: 4px;
-    }
-    .message.received {
-      background: var(--bubble-recv); color: var(--text);
-      border: 1px solid var(--border); border-bottom-left-radius: 4px;
-    }
-    .message .text { font-size: 14px; line-height: 1.4; }
-    .message .time { font-size: 10px; text-align: right; margin-top: 4px; opacity: 0.6; }
-    .message.sent .time { color: rgba(255,255,255,0.6); }
-
-    .input-bar {
-      display: flex; align-items: center; padding: 8px;
-      background: white; border-top: 1px solid var(--border);
-    }
-    .mic-btn {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: var(--bg); border: none; font-size: 18px;
-      cursor: pointer; margin-right: 8px; flex-shrink: 0;
-    }
-    .mic-btn.recording { background: var(--error); }
-    .msg-input {
-      flex: 1; padding: 10px 16px; border-radius: 20px;
-      border: none; background: var(--bg); font-size: 14px; outline: none;
-    }
-    .send-btn {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: var(--accent); border: none; color: white;
-      font-size: 18px; cursor: pointer; margin-left: 8px; flex-shrink: 0;
-    }
-
-    /* ========== CALL SCREEN ========== */
-    #callScreen {
-      background: var(--primary-dark);
-      justify-content: space-between; align-items: center;
-      padding: 80px 24px 50px;
-    }
-    .call-contact { font-size: 28px; font-weight: bold; color: white; }
-    .call-status { font-size: 16px; color: var(--accent-light); margin-top: 8px; }
-    .call-avatar-lg {
-      width: 120px; height: 120px; border-radius: 60px;
-      background: var(--primary); display: flex; align-items: center;
-      justify-content: center; margin: 40px 0;
-    }
-    .call-avatar-lg span { font-size: 50px; color: white; font-weight: bold; }
-    .call-timer { font-size: 24px; color: white; font-family: monospace; }
-    .call-controls { display: flex; gap: 24px; }
-    .ctrl-btn {
-      width: 60px; height: 60px; border-radius: 50%;
-      background: rgba(255,255,255,0.2); border: none;
-      font-size: 24px; cursor: pointer; color: white;
-    }
-    .ctrl-btn.end { background: var(--error); width: 70px; height: 70px; border-radius: 35px; }
-
-    /* ========== BOTTOM NAV ========== */
-    .bottom-nav {
-      display: flex; background: white; border-top: 1px solid var(--border);
-      padding: 8px 0;
-    }
-    .nav-item {
-      flex: 1; text-align: center; padding: 8px; cursor: pointer;
-      background: none; border: none;
-    }
-    .nav-icon { font-size: 22px; }
-    .nav-label { font-size: 10px; color: var(--text-sec); margin-top: 2px; }
-    .nav-item.active .nav-label { color: var(--accent); font-weight: bold; }
-  </style>
+  <!-- Socket.IO client (served by the server itself) -->
+  <script src="/socket.io/socket.io.js" defer></script>
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
@@ -238,49 +36,70 @@
 
   <div class="card">
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('login')">CONNEXION</button>
-      <button class="tab" onclick="switchTab('register')">INSCRIPTION</button>
+      <button class="tab active" data-tab="login">CONNEXION</button>
+      <button class="tab" data-tab="register">INSCRIPTION</button>
     </div>
-    <input type="text" id="nameField" class="form-input" placeholder="Votre nom...">
-    <input type="tel" class="form-input" id="phoneInput" placeholder="Numéro de téléphone...">
-    <input type="password" class="form-input" id="passInput" placeholder="Mot de passe...">
-    <button class="btn" onclick="handleAuth()">SE CONNECTER</button>
+    <input type="text" id="nameField" class="form-input hidden" placeholder="Votre nom...">
+    <input type="tel" class="form-input" id="phoneInput" placeholder="Numéro (ex: +257 79 12 34 56)">
+    <input type="password" class="form-input" id="passInput" placeholder="Mot de passe (min 6)">
+    <input type="text" id="inviteField" class="form-input hidden" placeholder="Code d'invitation (BUCHAT-XXXX-XXXX)">
+    <button class="btn" id="authBtn">SE CONNECTER</button>
+    <div id="authError" class="error-box hidden"></div>
   </div>
-  <div class="footer-text">© 2026 Buja Online — Bujumbura, Burundi<br>Ikibazo? Hamagara: +257 79 XXX XXX</div>
+  <div class="footer-text">© 2026 Buja Online — Bujumbura, Burundi</div>
 </div>
 
 <!-- ========== CHAT LIST ========== -->
 <div id="chatListScreen" class="screen">
   <div class="header">
-    <h1>Buchat</h1>
+    <div class="header-row">
+      <h1>Buchat</h1>
+      <div class="header-actions">
+        <button class="icon-btn" id="btnNewGroup" title="Nouveau groupe">👥</button>
+        <button class="icon-btn" id="btnInvites" title="Invitations">🎟️</button>
+        <button class="icon-btn" id="btnProfile" title="Profil">👤</button>
+      </div>
+    </div>
+    <input class="search-bar" id="searchInput" placeholder="🔍 Rechercher contacts / messages">
     <small id="contactCount">0 contacts</small>
   </div>
   <div class="contact-list" id="contactList"></div>
-  <div class="bottom-nav">
-    <button class="nav-item active"><div class="nav-icon">💬</div><div class="nav-label">Chats</div></button>
-    <button class="nav-item"><div class="nav-icon">📞</div><div class="nav-label">Appels</div></button>
-    <button class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profil</div></button>
+  <div id="pushPrompt" class="push-prompt hidden">
+    🔔 <span>Activez les notifications pour ne rien manquer.</span>
+    <button class="btn-link" id="enablePushBtn">Activer</button>
+    <button class="btn-link-close" id="dismissPushBtn">×</button>
   </div>
 </div>
 
 <!-- ========== CHAT ========== -->
 <div id="chatScreen" class="screen">
   <div class="chat-header">
-    <button class="back-btn" onclick="showScreen('chatListScreen')">←</button>
+    <button class="back-btn" data-back="chatListScreen">←</button>
+    <div class="avatar small" id="chatPeerAvatar"><span>?</span></div>
     <div class="chat-header-info">
       <div class="chat-header-name" id="chatContactName">Contact</div>
-      <div class="chat-header-status" id="chatContactStatus">En ligne</div>
+      <div class="chat-header-status" id="chatContactStatus">…</div>
     </div>
     <div class="call-btns">
-      <button class="call-btn" onclick="startCall('audio')">📞</button>
-      <button class="call-btn" onclick="startCall('video')">📹</button>
+      <button class="call-btn" id="btnAudioCall">📞</button>
+      <button class="call-btn" id="btnVideoCall">📹</button>
+      <button class="call-btn" id="btnChatMenu">⋮</button>
     </div>
   </div>
   <div class="messages" id="messagesContainer"></div>
+
+  <!-- Reply bar (quand on répond à un message) -->
+  <div id="replyBar" class="reply-bar hidden">
+    <div class="reply-text">↩ <span id="replyPreview"></span></div>
+    <button class="reply-cancel" id="replyCancel">×</button>
+  </div>
+
   <div class="input-bar">
-    <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎤</button>
-    <input type="text" class="msg-input" id="msgInput" placeholder="Écrire un message..." onkeypress="if(event.key==='Enter')sendMsg()">
-    <button class="send-btn" onclick="sendMsg()">➤</button>
+    <button class="mic-btn" id="micBtn">🎤</button>
+    <input type="file" id="mediaInput" accept="image/*,video/*" class="hidden">
+    <button class="attach-btn" id="attachBtn">📎</button>
+    <input type="text" class="msg-input" id="msgInput" placeholder="Écrire un message...">
+    <button class="send-btn" id="sendBtn">➤</button>
   </div>
 </div>
 
@@ -291,239 +110,130 @@
     <div class="call-status" id="callStatus">Connexion...</div>
   </div>
   <div class="call-avatar-lg"><span id="callAvatar">A</span></div>
+  <video id="localVideo" autoplay muted playsinline class="call-video hidden"></video>
+  <video id="remoteVideo" autoplay playsinline class="call-video remote hidden"></video>
   <div class="call-timer" id="callTimer">00:00</div>
   <div class="call-controls">
-    <button class="ctrl-btn" onclick="toggleMute()">🔊</button>
-    <button class="ctrl-btn end" onclick="endCall()">📞</button>
-    <button class="ctrl-btn" onclick="toggleSpeaker()">🔈</button>
+    <button class="ctrl-btn" id="btnMute">🎙️</button>
+    <button class="ctrl-btn end" id="btnHangup">📞</button>
+    <button class="ctrl-btn" id="btnToggleCamera">📹</button>
   </div>
 </div>
 
-<script>
-  // ========== STATE ==========
-  let currentScreen = 'loginScreen';
-  let isRegisterMode = false;
-  let currentUser = null;
-  let currentChat = null;
-  let token = null;
-  let socket = null;
-  let callTimerInterval = null;
-  let callSeconds = 0;
-  const SERVER = window.location.origin;
+<!-- ========== INCOMING CALL MODAL ========== -->
+<div id="incomingCall" class="modal-overlay hidden">
+  <div class="modal incoming-call">
+    <div class="call-avatar-lg"><span id="incomingAvatar">A</span></div>
+    <div class="call-contact" id="incomingName">Appel entrant</div>
+    <div class="call-status" id="incomingType">📞 Audio</div>
+    <div class="call-controls">
+      <button class="ctrl-btn end" id="btnRejectCall">✕</button>
+      <button class="ctrl-btn answer" id="btnAcceptCall">✓</button>
+    </div>
+  </div>
+</div>
 
-  // Demo contacts
-  const demoContacts = [
-    { id: '1', displayName: 'Alice Niyonzima', online: true, lastMsg: 'Amahoro! Bite? 👋', time: '14:32' },
-    { id: '2', displayName: 'Bob Ndayishimiye', online: true, lastMsg: 'Urakoze cane!', time: '13:15' },
-    { id: '3', displayName: 'Claire Irakoze', online: false, lastMsg: 'Message vocal', time: '12:01' },
-    { id: '4', displayName: 'David Bizimana', online: false, lastMsg: 'Tuzobonana ejo', time: '11:45' },
-    { id: '5', displayName: 'Emma Nsengiyumva', online: true, lastMsg: 'Ni vyiza! 😊', time: '10:30' },
-  ];
+<!-- ========== PROFILE ========== -->
+<div id="profileScreen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" data-back="chatListScreen">←</button>
+      <h1>Profil</h1>
+    </div>
+  </div>
+  <div class="profile-body">
+    <div class="avatar-editor">
+      <div class="avatar xl" id="profileAvatar"><span>?</span></div>
+      <input type="file" id="avatarInput" accept="image/*" class="hidden">
+      <button class="btn-link" id="changeAvatarBtn">Changer la photo</button>
+    </div>
+    <label class="field-label">Nom</label>
+    <input type="text" id="profileName" class="form-input">
+    <label class="field-label">À propos</label>
+    <textarea id="profileAbout" class="form-input" rows="2"></textarea>
+    <label class="field-label">Numéro</label>
+    <input type="text" id="profilePhone" class="form-input" disabled>
+    <button class="btn" id="saveProfileBtn">ENREGISTRER</button>
+    <button class="btn btn-outline" id="btnOpenBlocked">Utilisateurs bloqués</button>
+    <button class="btn btn-outline" id="btnLogout">Se déconnecter</button>
+  </div>
+</div>
 
-  const demoMessages = [
-    { text: 'Amahoro! Bite?', sent: false, time: '14:30' },
-    { text: 'Amahoro! Ndagukunda, ni vyiza 😊', sent: true, time: '14:31' },
-    { text: 'Tuzobonana ryari? Ndagufitiye amakuru meza!', sent: false, time: '14:32' },
-    { text: 'Ejo mu gitondo, ku masaha 10?', sent: true, time: '14:33' },
-  ];
+<!-- ========== INVITES ========== -->
+<div id="invitesScreen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" data-back="chatListScreen">←</button>
+      <h1>Invitations</h1>
+    </div>
+  </div>
+  <div class="invites-body">
+    <p class="hint">Partagez un code pour inviter un proche à Buchat.</p>
+    <button class="btn" id="createInviteBtn">GÉNÉRER UN CODE</button>
+    <div id="invitesList" class="invites-list"></div>
+  </div>
+</div>
 
-  // ========== NAVIGATION ==========
-  function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    currentScreen = id;
-  }
+<!-- ========== NEW GROUP ========== -->
+<div id="newGroupScreen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" data-back="chatListScreen">←</button>
+      <h1>Nouveau groupe</h1>
+    </div>
+  </div>
+  <div class="invites-body">
+    <input class="form-input" id="newGroupName" placeholder="Nom du groupe">
+    <p class="hint">Sélectionnez les membres :</p>
+    <div id="newGroupMembers" class="member-picker"></div>
+    <button class="btn" id="createGroupBtn">CRÉER</button>
+  </div>
+</div>
 
-  function switchTab(mode) {
-    isRegisterMode = mode === 'register';
-    document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', (i === 0 && !isRegisterMode) || (i === 1 && isRegisterMode));
-    });
-    document.getElementById('nameField').style.display = isRegisterMode ? 'block' : 'none';
-    document.querySelector('.btn').textContent = isRegisterMode ? 'CRÉER MON COMPTE' : 'SE CONNECTER';
-  }
+<!-- ========== BLOCKED USERS ========== -->
+<div id="blockedScreen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" data-back="profileScreen">←</button>
+      <h1>Bloqués</h1>
+    </div>
+  </div>
+  <div class="invites-body">
+    <div id="blockedList" class="invites-list"></div>
+  </div>
+</div>
 
-  // ========== AUTH ==========
-  async function handleAuth() {
-    const phone = document.getElementById('phoneInput').value;
-    const password = document.getElementById('passInput').value;
-    const name = document.getElementById('nameField').value;
+<!-- ========== CHAT ACTIONS MODAL ========== -->
+<div id="chatMenu" class="modal-overlay hidden">
+  <div class="modal bottom-sheet">
+    <button class="sheet-item" data-act="pin">📌 <span id="pinLabel">Épingler</span></button>
+    <button class="sheet-item" data-act="archive">🗂️ <span id="archiveLabel">Archiver</span></button>
+    <button class="sheet-item" data-act="mute">🔕 Mettre en sourdine 8h</button>
+    <button class="sheet-item" data-act="block">🚫 Bloquer</button>
+    <button class="sheet-item" data-act="cancel">Annuler</button>
+  </div>
+</div>
 
-    if (!phone || !password) { alert('Numéro et mot de passe requis'); return; }
+<!-- ========== MESSAGE LONG PRESS MODAL ========== -->
+<div id="msgMenu" class="modal-overlay hidden">
+  <div class="modal bottom-sheet">
+    <div class="reaction-row">
+      <button class="reac-btn" data-emoji="👍">👍</button>
+      <button class="reac-btn" data-emoji="❤️">❤️</button>
+      <button class="reac-btn" data-emoji="😂">😂</button>
+      <button class="reac-btn" data-emoji="😮">😮</button>
+      <button class="reac-btn" data-emoji="😢">😢</button>
+      <button class="reac-btn" data-emoji="🙏">🙏</button>
+    </div>
+    <button class="sheet-item" data-act="reply">↩️ Répondre</button>
+    <button class="sheet-item" data-act="copy">📋 Copier</button>
+    <button class="sheet-item" data-act="cancel">Annuler</button>
+  </div>
+</div>
 
-    try {
-      const endpoint = isRegisterMode ? '/api/register' : '/api/login';
-      const body = isRegisterMode
-        ? { phone, password, displayName: name || phone }
-        : { phone, password };
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast hidden"></div>
 
-      const res = await fetch(SERVER + endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      token = data.token;
-      currentUser = data.user;
-      loadChatList();
-      showScreen('chatListScreen');
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  // ========== CHAT LIST ==========
-  function loadChatList() {
-    const list = document.getElementById('contactList');
-    document.getElementById('contactCount').textContent = demoContacts.length + ' contacts';
-
-    list.innerHTML = demoContacts.map(c => `
-      <div class="contact-item" onclick="openChat('${c.id}', '${c.displayName}', ${c.online})">
-        <div class="avatar">
-          <span>${c.displayName.charAt(0)}</span>
-          <div class="status-dot ${c.online ? 'online' : 'offline'}"></div>
-        </div>
-        <div class="contact-info">
-          <div class="contact-name">${c.displayName}</div>
-          <div class="contact-preview">${c.online ? (c.lastMsg || 'En ligne') : c.lastMsg || 'Hors ligne'}</div>
-        </div>
-        <div class="contact-time">${c.time}</div>
-      </div>
-    `).join('');
-  }
-
-  // ========== CHAT ==========
-  function openChat(id, name, online) {
-    currentChat = { id, name, online };
-    document.getElementById('chatContactName').textContent = name;
-    document.getElementById('chatContactStatus').textContent = online ? 'En ligne' : 'Hors ligne';
-
-    const container = document.getElementById('messagesContainer');
-    container.innerHTML = demoMessages.map(m => `
-      <div class="message ${m.sent ? 'sent' : 'received'}">
-        <div class="text">${m.text}</div>
-        <div class="time">${m.time}</div>
-      </div>
-    `).join('');
-    container.scrollTop = container.scrollHeight;
-
-    showScreen('chatScreen');
-  }
-
-  function sendMsg() {
-    const input = document.getElementById('msgInput');
-    const text = input.value.trim();
-    if (!text) return;
-
-    const container = document.getElementById('messagesContainer');
-    const now = new Date();
-    const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-
-    container.innerHTML += `
-      <div class="message sent">
-        <div class="text">${text}</div>
-        <div class="time">${time}</div>
-      </div>
-    `;
-    input.value = '';
-    container.scrollTop = container.scrollHeight;
-
-    // Simulate reply
-    setTimeout(() => {
-      const replies = ['Yego!', 'Ni vyiza 👍', 'Ndabikunda!', 'Urakoze! 😊', 'Tuzobonana!'];
-      const reply = replies[Math.floor(Math.random() * replies.length)];
-      container.innerHTML += `
-        <div class="message received">
-          <div class="text">${reply}</div>
-          <div class="time">${time}</div>
-        </div>
-      `;
-      container.scrollTop = container.scrollHeight;
-    }, 1500);
-  }
-
-  function toggleRecording() {
-    const btn = document.getElementById('micBtn');
-    btn.classList.toggle('recording');
-    if (btn.classList.contains('recording')) {
-      btn.textContent = '⏹';
-    } else {
-      btn.textContent = '🎤';
-      // Add voice message
-      const container = document.getElementById('messagesContainer');
-      const now = new Date();
-      const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-      container.innerHTML += `
-        <div class="message sent">
-          <div class="text">🎤 Message vocal — 0:03</div>
-          <div class="time">${time}</div>
-        </div>
-      `;
-      container.scrollTop = container.scrollHeight;
-    }
-  }
-
-  // ========== CALLS ==========
-  function startCall(type) {
-    if (!currentChat) return;
-    document.getElementById('callContactName').textContent = currentChat.name;
-    document.getElementById('callAvatar').textContent = currentChat.name.charAt(0);
-    document.getElementById('callStatus').textContent = 'Sonnerie...';
-    document.getElementById('callTimer').textContent = '00:00';
-    callSeconds = 0;
-    showScreen('callScreen');
-
-    setTimeout(() => {
-      document.getElementById('callStatus').textContent = type === 'video' ? 'Appel vidéo' : 'Appel audio';
-      callTimerInterval = setInterval(() => {
-        callSeconds++;
-        const m = Math.floor(callSeconds / 60).toString().padStart(2, '0');
-        const s = (callSeconds % 60).toString().padStart(2, '0');
-        document.getElementById('callTimer').textContent = m + ':' + s;
-      }, 1000);
-    }, 2000);
-  }
-
-  function endCall() {
-    if (callTimerInterval) clearInterval(callTimerInterval);
-    showScreen('chatScreen');
-  }
-
-  function toggleMute() {}
-  function toggleSpeaker() {}
-
-  // ---- PWA : enregistrement du service worker ----
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('sw.js', { scope: './' })
-        .then((reg) => console.log('✓ Service Worker actif', reg.scope))
-        .catch((err) => console.warn('SW non enregistré :', err));
-    });
-  }
-
-  // ---- Détection "Ajouter à l'écran d'accueil" (Android/Chrome) ----
-  let deferredInstallPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    // Optionnel : afficher un bouton "Installer l'appli"
-    // document.getElementById('installBtn').hidden = false;
-  });
-
-  // Fonction exposée pour déclencher l'installation (à brancher sur un bouton)
-  window.installBuchat = async () => {
-    if (!deferredInstallPrompt) {
-      alert("Sur iPhone : appuyez sur Partager → Ajouter à l'écran d'accueil.");
-      return;
-    }
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-  };
-</script>
-
+<script src="app.js" defer></script>
 </body>
 </html>
