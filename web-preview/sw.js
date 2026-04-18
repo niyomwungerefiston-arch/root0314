@@ -6,10 +6,13 @@
  * Les messages ne sont JAMAIS mis en cache (souveraineté + confidentialité).
  */
 
-const CACHE_VERSION = 'buchat-v1';
+const CACHE_VERSION = 'buchat-v2';
 const APP_SHELL = [
   './',
   './index.html',
+  './app.css',
+  './app.js',
+  './app-features.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -87,6 +90,43 @@ self.addEventListener('fetch', (event) => {
             return caches.match('./index.html');
           }
         });
+    })
+  );
+});
+
+// ---- Push Notifications ----
+self.addEventListener('push', (event) => {
+  let data = { title: 'Buchat', body: 'Nouveau message' };
+  try { data = event.data.json(); } catch(e) {}
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Buchat', {
+      body: data.body || '',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-72.png',
+      data: data.data || {},
+      actions: data.actions || [],
+      vibrate: [200, 100, 200],
+      tag: data.tag || 'buchat-msg',
+      renotify: true,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const chatId = event.notification.data?.chatId;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes('/app') && 'focus' in client) {
+          client.focus();
+          if (chatId) client.postMessage({ type: 'OPEN_CHAT', chatId });
+          return;
+        }
+      }
+      return self.clients.openWindow('./');
     })
   );
 });
